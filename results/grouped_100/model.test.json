@@ -1,0 +1,91 @@
+{
+  "checkpoint": "/home/jiwoo/img_cls_from_scratch/results/grouped_100/model.pt",
+  "best_epoch": 73,
+  "best_global_step": 1095,
+  "validation_loss": 0.17844353530739174,
+  "test_loss": 0.2457301471351592,
+  "test_accuracy": 0.9504132231404959,
+  "test_macro_f1": 0.9504403511635922,
+  "test_samples": 121,
+  "classes": [
+    "B01",
+    "B02",
+    "B03",
+    "B04",
+    "B05"
+  ],
+  "class_metrics": {
+    "B01": {
+      "correct": 22,
+      "total": 24,
+      "precision": 1.0,
+      "recall": 0.9166666666666666,
+      "f1": 0.9565217391304348
+    },
+    "B02": {
+      "correct": 22,
+      "total": 24,
+      "precision": 0.9565217391304348,
+      "recall": 0.9166666666666666,
+      "f1": 0.9361702127659575
+    },
+    "B03": {
+      "correct": 24,
+      "total": 25,
+      "precision": 0.9230769230769231,
+      "recall": 0.96,
+      "f1": 0.9411764705882353
+    },
+    "B04": {
+      "correct": 23,
+      "total": 24,
+      "precision": 0.9583333333333334,
+      "recall": 0.9583333333333334,
+      "f1": 0.9583333333333334
+    },
+    "B05": {
+      "correct": 24,
+      "total": 24,
+      "precision": 0.9230769230769231,
+      "recall": 1.0,
+      "f1": 0.96
+    }
+  },
+  "confusion_matrix": [
+    [
+      22,
+      1,
+      1,
+      0,
+      0
+    ],
+    [
+      0,
+      22,
+      0,
+      0,
+      2
+    ],
+    [
+      0,
+      0,
+      24,
+      1,
+      0
+    ],
+    [
+      0,
+      0,
+      1,
+      23,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      24
+    ]
+  ]
+}
