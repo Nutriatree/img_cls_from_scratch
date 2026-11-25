@@ -1,0 +1,19 @@
+# Python caches and virtual environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+
+# Local editor and OS files
+.idea/
+.vscode/
+.DS_Store
+
+# Local environment secrets
+.env
+.env.*
+
+# Markdown documents
+*.md
