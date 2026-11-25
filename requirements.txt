@@ -1,5 +1,6 @@
-torch==2.14.0
-numpy==2.4.6
-Pillow==12.3.0
-tqdm==4.70.0
-matplotlib==3.11.1
+# Python 3.10+; pip selects versions compatible with the active Python.
+torch>=2.2
+numpy>=1.26
+Pillow>=10
+tqdm>=4.66
+matplotlib>=3.8
