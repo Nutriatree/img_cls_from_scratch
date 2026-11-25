@@ -24,8 +24,8 @@ from preprocessing import AugmentationConfig, Preprocessor, seed_worker, trainin
 
 # Training settings
 ROOT = Path(__file__).resolve().parent
-DATA_DIR = ROOT / 'data'
-MODEL_PATH = ROOT / 'model_60.pt'
+DATA_DIR = ROOT / 'data_grouped'
+MODEL_PATH = ROOT / 'model_grouped_60.pt'
 IMAGE_SIZE = (224, 224)
 SEED = 42
 EPOCHS = 60
