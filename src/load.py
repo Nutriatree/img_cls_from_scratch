@@ -25,10 +25,10 @@ from preprocessing import AugmentationConfig, Preprocessor, seed_worker, trainin
 # Training settings
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / 'data_grouped'
-MODEL_PATH = ROOT / 'results' / 'grouped_60' / 'model.pt'
+MODEL_PATH = ROOT / 'results' / 'grouped_100' / 'model.pt'
 IMAGE_SIZE = (224, 224)
 SEED = 42
-EPOCHS = 60
+EPOCHS = 100
 WARMUP_EPOCHS = 2
 USE_DDP = True  # True: launch with torchrun; BATCH_SIZE is global
 BATCH_SIZE = 64
