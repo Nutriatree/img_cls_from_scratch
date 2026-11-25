@@ -23,9 +23,9 @@ from model import DenseNetBC
 from preprocessing import AugmentationConfig, Preprocessor, seed_worker, training_statistics
 
 # Training settings
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / 'data_grouped'
-MODEL_PATH = ROOT / 'model_grouped_60.pt'
+MODEL_PATH = ROOT / 'results' / 'grouped_60' / 'model.pt'
 IMAGE_SIZE = (224, 224)
 SEED = 42
 EPOCHS = 60
@@ -123,10 +123,51 @@ def save_loss_curve(history_path, curve_path):
         temporary_path.unlink(missing_ok=True)
 
 
+def classification_metrics(confusion, classes):
+    scores = {}
+    for index, name in enumerate(classes):
+        correct = confusion[index][index]
+        actual = sum(confusion[index])
+        predicted = sum(row[index] for row in confusion)
+        precision = correct / predicted if predicted else 0.0
+        recall = correct / actual if actual else 0.0
+        f1 = 2 * correct / (actual + predicted) if actual + predicted else 0.0
+        scores[name] = {'correct': correct, 'total': actual, 'precision': precision,
+                        'recall': recall, 'f1': f1}
+    return scores, sum(score['f1'] for score in scores.values()) / len(classes)
+
+
+def save_confusion_matrix(confusion, classes, destination):
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots()
+    image = ax.imshow(confusion, cmap='Blues')
+    fig.colorbar(image, ax=ax)
+    ax.set(xticks=range(len(classes)), yticks=range(len(classes)),
+           xticklabels=classes, yticklabels=classes, xlabel='Predicted', ylabel='Actual',
+           title='Test confusion matrix')
+    midpoint = max(max(row) for row in confusion) / 2
+    for i, row in enumerate(confusion):
+        for j, value in enumerate(row):
+            ax.text(j, i, str(value), ha='center', va='center',
+                    color='white' if value > midpoint else 'black')
+    fig.tight_layout()
+    with tempfile.NamedTemporaryFile(dir=destination.parent, suffix='.png', delete=False) as file:
+        temporary_path = Path(file.name)
+    try:
+        fig.savefig(temporary_path, dpi=150)
+        os.replace(temporary_path, destination)
+    finally:
+        plt.close(fig)
+        temporary_path.unlink(missing_ok=True)
+
+
 def main():
     if USE_DDP:
         if 'RANK' not in os.environ or 'LOCAL_RANK' not in os.environ:
-            raise RuntimeError('USE_DDP=True requires torchrun --nproc-per-node=2 load.py')
+            raise RuntimeError('USE_DDP=True requires torchrun --nproc-per-node=2 src/load.py')
         rank = int(os.environ['RANK'])
         local_rank = int(os.environ['LOCAL_RANK'])
         world_size = int(os.environ['WORLD_SIZE'])
@@ -144,7 +185,7 @@ def main():
         dist.init_process_group(backend=backend)
     else:
         if int(os.environ.get('WORLD_SIZE', '1')) > 1:
-            raise RuntimeError('USE_DDP=False: use python load.py rather than torchrun')
+            raise RuntimeError('USE_DDP=False: use python src/load.py rather than torchrun')
         rank, world_size = 0, 1
         if DEVICE == 'auto':
             device = torch.device('cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu')
@@ -161,7 +202,9 @@ def train(rank, world_size, device):
     config_path = MODEL_PATH.with_suffix('.config.json')
     history_path = MODEL_PATH.with_suffix('.history.csv')
     curve_path = MODEL_PATH.with_suffix('.loss.png')
-    for path in (MODEL_PATH, config_path, history_path, curve_path):
+    test_path = MODEL_PATH.with_suffix('.test.json')
+    confusion_path = MODEL_PATH.with_suffix('.confusion.png')
+    for path in (MODEL_PATH, config_path, history_path, curve_path, test_path, confusion_path):
         if path.exists():
             raise FileExistsError(f'{path} already exists; choose another MODEL_PATH to avoid overwriting it')
     if not 0 <= WARMUP_EPOCHS < EPOCHS:
@@ -183,6 +226,7 @@ def train(rank, world_size, device):
     mean, std = statistics[0]
     train_data = ImageDataset(train_dir, classes, Preprocessor(mean, std, config, training=True))
     val_data = ImageDataset(val_dir, classes, Preprocessor(mean, std, config, training=False))
+    test_data = ImageDataset(DATA_DIR / 'test', classes, Preprocessor(mean, std, config, training=False))
     if USE_DDP and len(train_data) % world_size:
         raise ValueError('Training sample count must be divisible by the process count to avoid duplicated images')
     sampler = DistributedSampler(train_data, num_replicas=world_size, rank=rank, shuffle=True, seed=SEED) if USE_DDP else None
@@ -192,6 +236,8 @@ def train(rank, world_size, device):
                               generator=torch.Generator().manual_seed(SEED + rank))
     val_loader = DataLoader(val_data, batch_size=VAL_BATCH_SIZE, shuffle=False, num_workers=NUM_WORKERS,
                             worker_init_fn=seed_worker, generator=torch.Generator().manual_seed(SEED + 1))
+    test_loader = DataLoader(test_data, batch_size=VAL_BATCH_SIZE, shuffle=False, num_workers=NUM_WORKERS,
+                             worker_init_fn=seed_worker, generator=torch.Generator().manual_seed(SEED + 2))
     model = DenseNetBC().to(device)
     if USE_DDP:
         model = DistributedDataParallel(model, device_ids=[device.index] if device.type == 'cuda' else None)
@@ -212,7 +258,8 @@ def train(rank, world_size, device):
     metadata = {
         'model': 'DenseNetBC', 'parameters': sum(p.numel() for p in model.parameters()),
         'data_dir': str(DATA_DIR.resolve()), 'train_samples': len(train_data),
-        'validation_samples': len(val_data), 'classes': classes, 'mean': mean, 'std': std,
+        'validation_samples': len(val_data), 'test_samples': len(test_data),
+        'classes': classes, 'mean': mean, 'std': std,
         'augmentation': asdict(config), 'seed': SEED, 'epochs': EPOCHS,
         'warmup_epochs': WARMUP_EPOCHS, 'batch_size': BATCH_SIZE, 'local_batch_size': local_batch,
         'validation_batch_size': VAL_BATCH_SIZE,
@@ -229,7 +276,7 @@ def train(rank, world_size, device):
             json.dump(metadata, file, ensure_ascii=False, indent=2)
         with history_path.open('x', newline='', encoding='utf-8') as file:
             csv.writer(file).writerow(['epoch', 'global_step', 'learning_rate', 'train_loss', 'train_accuracy',
-                                       'validation_loss', 'validation_accuracy', 'validation_confusion_matrix'])
+                                       'validation_loss', 'validation_accuracy', 'validation_macro_f1', 'validation_confusion_matrix'])
         print(f'Device: {device}; processes: {world_size}; train: {len(train_data)}; validation: {len(val_data)}', flush=True)
         print(f'Classes: {classes}; mean: {mean}; std: {std}', flush=True)
     global_step = 0
@@ -245,9 +292,10 @@ def train(rank, world_size, device):
             # Only rank 0 evaluates the full validation set using the unwrapped model.
             val_loss, val_acc, val_confusion = run_epoch(base_model, val_loader, val_loss_fn, device,
                                                          description=f'Epoch {epoch + 1} validation')
+            _, val_macro_f1 = classification_metrics(val_confusion, classes)
             with history_path.open('a', newline='', encoding='utf-8') as file:
                 csv.writer(file).writerow([epoch + 1, global_step, lr, train_loss, train_acc, val_loss, val_acc,
-                                           json.dumps(val_confusion)])
+                                           val_macro_f1, json.dumps(val_confusion)])
             if val_loss < best_loss:
                 checkpoint = {'model_state_dict': base_model.state_dict(), 'classes': classes,
                               'mean': mean, 'std': std, 'image_size': IMAGE_SIZE,
@@ -263,12 +311,27 @@ def train(rank, world_size, device):
             save_loss_curve(history_path, curve_path)
             tqdm.write(f'Epoch {epoch + 1}/{EPOCHS} step={global_step} lr={lr:.7f} '
                        f'train_loss={train_loss:.4f} train_acc={train_acc:.3f} '
-                       f'val_loss={val_loss:.4f} val_acc={val_acc:.3f}')
+                       f'val_loss={val_loss:.4f} val_acc={val_acc:.3f} val_macro_f1={val_macro_f1:.3f}')
         if USE_DDP:
             dist.barrier()
         scheduler.step()
     if rank == 0:
+        checkpoint = torch.load(MODEL_PATH, map_location=device, weights_only=True)
+        base_model.load_state_dict(checkpoint['model_state_dict'])
+        test_loss, test_acc, confusion = run_epoch(base_model, test_loader, val_loss_fn, device,
+                                                    description='Best model test')
+        class_metrics, macro_f1 = classification_metrics(confusion, classes)
+        result = {'checkpoint': str(MODEL_PATH), 'best_epoch': checkpoint['epoch'],
+                  'best_global_step': checkpoint['global_step'], 'validation_loss': checkpoint['validation_loss'],
+                  'test_loss': test_loss, 'test_accuracy': test_acc, 'test_macro_f1': macro_f1, 'test_samples': len(test_data),
+                  'classes': classes, 'class_metrics': class_metrics, 'confusion_matrix': confusion}
+        save_confusion_matrix(confusion, classes, confusion_path)
+        with test_path.open('x', encoding='utf-8') as file:
+            json.dump(result, file, ensure_ascii=False, indent=2)
         print(f'Best validation loss: {best_loss:.4f}; saved: {MODEL_PATH}', flush=True)
+        print(f'Test loss: {test_loss:.4f}; accuracy: {test_acc:.4f}; macro F1: {macro_f1:.4f}; saved: {test_path}', flush=True)
+    if USE_DDP:
+        dist.barrier()
 
 
 if __name__ == '__main__':

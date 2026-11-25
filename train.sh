@@ -4,4 +4,4 @@ set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 eval "$(conda shell.bash hook)"
 conda activate DL
-exec "$CONDA_PREFIX/bin/python" -m torch.distributed.run --standalone --nproc-per-node=2 load.py
+exec "$CONDA_PREFIX/bin/python" -m torch.distributed.run --standalone --nproc-per-node=2 src/load.py
