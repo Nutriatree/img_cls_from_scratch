@@ -31,7 +31,8 @@ SEED = 42
 EPOCHS = 30
 WARMUP_EPOCHS = 2
 USE_DDP = True  # True: launch with torchrun; BATCH_SIZE is global
-BATCH_SIZE = 128
+BATCH_SIZE = 16
+VAL_BATCH_SIZE = 16
 NUM_WORKERS = 0
 LEARNING_RATE = 3e-4
 WEIGHT_DECAY = 1e-4
@@ -189,7 +190,7 @@ def train(rank, world_size, device):
     train_loader = DataLoader(train_data, batch_size=local_batch, shuffle=sampler is None, sampler=sampler,
                               num_workers=NUM_WORKERS, worker_init_fn=seed_worker,
                               generator=torch.Generator().manual_seed(SEED + rank))
-    val_loader = DataLoader(val_data, batch_size=BATCH_SIZE, shuffle=False, num_workers=NUM_WORKERS,
+    val_loader = DataLoader(val_data, batch_size=VAL_BATCH_SIZE, shuffle=False, num_workers=NUM_WORKERS,
                             worker_init_fn=seed_worker, generator=torch.Generator().manual_seed(SEED + 1))
     model = DenseNetBC().to(device)
     if USE_DDP:
@@ -214,6 +215,7 @@ def train(rank, world_size, device):
         'validation_samples': len(val_data), 'classes': classes, 'mean': mean, 'std': std,
         'augmentation': asdict(config), 'seed': SEED, 'epochs': EPOCHS,
         'warmup_epochs': WARMUP_EPOCHS, 'batch_size': BATCH_SIZE, 'local_batch_size': local_batch,
+        'validation_batch_size': VAL_BATCH_SIZE,
         'use_ddp': USE_DDP, 'world_size': world_size, 'num_workers': NUM_WORKERS,
         'validation_interval': 'epoch',
         'optimizer': 'AdamW', 'learning_rate': LEARNING_RATE, 'weight_decay': WEIGHT_DECAY,
