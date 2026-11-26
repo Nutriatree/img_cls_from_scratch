@@ -60,3 +60,5 @@ venv/
 !/figures/**/*.[hH][eE][iI][fF]
 !/figures/**/*.[iI][cC][oO]
 /기초딥러닝_프로젝트_1_박지우.zip
+
+!/README.md
