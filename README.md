@@ -4,6 +4,10 @@
 
 **사전 학습 없이 DenseNet-BC로 건물 이미지를 분류합니다.**
 
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)
+![PyTorch](https://img.shields.io/badge/PyTorch-2.2%2B-EE4C2C?style=flat-square&logo=pytorch&logoColor=white)
+![Task](https://img.shields.io/badge/Task-Image%20Classification-475569?style=flat-square)
+![Model](https://img.shields.io/badge/Model-DenseNet--BC-2563EB?style=flat-square)
 
 [Overview](#overview) · [Architecture](#architecture) · [Quick Start](#quick-start) · [Results](#experiment-results) · [Structure](#repository-structure)
 
